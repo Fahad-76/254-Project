@@ -1,0 +1,9 @@
+
+========
+[MAIN]: Flushing pipeline
+========
+#Cycles            = 2276036
+#Forwards (EX-EX)  = 767254
+#Forwards (EX-MEM) = 485634
+#Branches taken    = 78112
+#Stalls            = 208128
