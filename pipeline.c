@@ -366,12 +366,12 @@ void cycle_pipeline(regfile_t *regfile_p, Byte *memory_p, Cache *cache_p,
     pregs_p->exmem_preg.inp = stage_execute(pregs_p->idex_preg.out, pwires_p);
     pregs_p->memwb_preg.inp = stage_mem(pregs_p->exmem_preg.out, pwires_p, memory_p, cache_p);
                               stage_writeback(pregs_p->memwb_preg.out, pwires_p, regfile_p);
-
+                        
     // --- Handle PC update ---
     if (pwires_p->pcsrc) {
-    #ifdef DEBUG_CYCLE
-        printf("\n========\n[MAIN]: Flushing pipeline\n========\n");
-    #endif
+   // #ifdef DEBUG_CYCLE
+     //   printf("\n========\n[MAIN]: Flushing pipeline\n========\n");
+    //#endif
 
         regfile_p->PC = pwires_p->pc_src1;
         //pregs_p->ifid_preg.out = (ifid_reg_t){0}; // Flush only IF stage

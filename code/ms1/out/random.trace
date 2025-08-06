@@ -597,10 +597,6 @@ v==============Cycle Counter =    37==============v
 [EX ]: Instruction [fffff5b7]@[0000108c]: lui	x11, 1048575
 [MEM]: Instruction [00650c63]@[00001088]: beq	x10, x6, 24
 [WB ]: Instruction [00000013]@[00001084]: addi	x0, x0, 0
-
-========
-[MAIN]: Flushing pipeline
-========
 r 0=00000000 r 1=00000000 r 2=000efffc r 3=00003000 
 r 4=00000000 r 5=00000000 r 6=0000000a r 7=00000000 
 r 8=ffffffff r 9=fffff7ff r10=0000000a r11=00000000 
@@ -674,9 +670,13 @@ r20=00000000 r21=00000000 r22=00000000 r23=00000000
 r24=00000000 r25=00000000 r26=00000000 r27=00000000 
 r28=00000000 r29=00000000 r30=00000000 r31=00000000 
 
+
+========
+[MAIN]: Flushing pipeline
+========
 v==============Cycle Counter =    42==============v
 
-[IF ]: Instruction [00000000]@[000010b0]: 
+[IF ]: Instruction [00000013]@[000010b0]: addi	x0, x0, 0
 [ID ]: Instruction [00000013]@[000010ac]: addi	x0, x0, 0
 [EX ]: Instruction [00000013]@[000010a8]: addi	x0, x0, 0
 [MEM]: Instruction [00000013]@[000010a4]: addi	x0, x0, 0
@@ -692,8 +692,8 @@ r28=00000000 r29=00000000 r30=00000000 r31=00000000
 
 v==============Cycle Counter =    43==============v
 
-[IF ]: Instruction [00000000]@[000010b4]: 
-[ID ]: Instruction [00000000]@[000010b0]: 
+[IF ]: Instruction [00000013]@[000010b4]: addi	x0, x0, 0
+[ID ]: Instruction [00000013]@[000010b0]: addi	x0, x0, 0
 [EX ]: Instruction [00000013]@[000010ac]: addi	x0, x0, 0
 [MEM]: Instruction [00000013]@[000010a8]: addi	x0, x0, 0
 [WB ]: Instruction [00000013]@[000010a4]: addi	x0, x0, 0
@@ -706,15 +706,11 @@ r20=00000000 r21=00000000 r22=00000000 r23=00000000
 r24=00000000 r25=00000000 r26=00000000 r27=00000000 
 r28=00000000 r29=00000000 r30=00000000 r31=00000000 
 
-
-========
-[MAIN]: Flushing pipeline
-========
 v==============Cycle Counter =    44==============v
 
 [IF ]: Instruction [00000013]@[000010b8]: addi	x0, x0, 0
-[ID ]: Instruction [00000000]@[000010b4]: 
-[EX ]: Instruction [00000000]@[00000000]: 
+[ID ]: Instruction [00000013]@[000010b4]: addi	x0, x0, 0
+[EX ]: Instruction [00000013]@[000010b0]: addi	x0, x0, 0
 [MEM]: Instruction [00000013]@[000010ac]: addi	x0, x0, 0
 [WB ]: Instruction [00000013]@[000010a8]: addi	x0, x0, 0
 r 0=00000000 r 1=00000000 r 2=000efffc r 3=00003000 
@@ -730,8 +726,8 @@ v==============Cycle Counter =    45==============v
 
 [IF ]: Instruction [00000013]@[000010bc]: addi	x0, x0, 0
 [ID ]: Instruction [00000013]@[000010b8]: addi	x0, x0, 0
-[EX ]: Instruction [00000000]@[00000000]: 
-[MEM]: Instruction [00000000]@[00000000]: 
+[EX ]: Instruction [00000013]@[000010b4]: addi	x0, x0, 0
+[MEM]: Instruction [00000013]@[000010b0]: addi	x0, x0, 0
 [WB ]: Instruction [00000013]@[000010ac]: addi	x0, x0, 0
 r 0=00000000 r 1=00000000 r 2=000efffc r 3=00003000 
 r 4=00000000 r 5=00000000 r 6=0000000a r 7=00000000 
@@ -747,8 +743,8 @@ v==============Cycle Counter =    46==============v
 [IF ]: Instruction [00000013]@[000010c0]: addi	x0, x0, 0
 [ID ]: Instruction [00000013]@[000010bc]: addi	x0, x0, 0
 [EX ]: Instruction [00000013]@[000010b8]: addi	x0, x0, 0
-[MEM]: Instruction [00000000]@[00000000]: 
-[WB ]: Instruction [00000000]@[00000000]: 
+[MEM]: Instruction [00000013]@[000010b4]: addi	x0, x0, 0
+[WB ]: Instruction [00000013]@[000010b0]: addi	x0, x0, 0
 r 0=00000000 r 1=00000000 r 2=000efffc r 3=00003000 
 r 4=00000000 r 5=00000000 r 6=0000000a r 7=00000000 
 r 8=ffffffff r 9=fffff7ff r10=0000000a r11=fffff000 
@@ -758,39 +754,7 @@ r20=00000000 r21=00000000 r22=00000000 r23=00000000
 r24=00000000 r25=00000000 r26=00000000 r27=00000000 
 r28=00000000 r29=00000000 r30=00000000 r31=00000000 
 
-v==============Cycle Counter =    47==============v
-
-[IF ]: Instruction [00000013]@[000010c4]: addi	x0, x0, 0
-[ID ]: Instruction [00000013]@[000010c0]: addi	x0, x0, 0
-[EX ]: Instruction [00000013]@[000010bc]: addi	x0, x0, 0
-[MEM]: Instruction [00000013]@[000010b8]: addi	x0, x0, 0
-[WB ]: Instruction [00000000]@[00000000]: 
-r 0=00000000 r 1=00000000 r 2=000efffc r 3=00003000 
-r 4=00000000 r 5=00000000 r 6=0000000a r 7=00000000 
-r 8=ffffffff r 9=fffff7ff r10=0000000a r11=fffff000 
-r12=00000000 r13=00000000 r14=00000000 r15=00000000 
-r16=00000000 r17=00000000 r18=00bad000 r19=0dead000 
-r20=00000000 r21=00000000 r22=00000000 r23=00000000 
-r24=00000000 r25=00000000 r26=00000000 r27=00000000 
-r28=00000000 r29=00000000 r30=00000000 r31=00000000 
-
-v==============Cycle Counter =    48==============v
-
-[IF ]: Instruction [00000013]@[000010c8]: addi	x0, x0, 0
-[ID ]: Instruction [00000013]@[000010c4]: addi	x0, x0, 0
-[EX ]: Instruction [00000013]@[000010c0]: addi	x0, x0, 0
-[MEM]: Instruction [00000013]@[000010bc]: addi	x0, x0, 0
-[WB ]: Instruction [00000013]@[000010b8]: addi	x0, x0, 0
-r 0=00000000 r 1=00000000 r 2=000efffc r 3=00003000 
-r 4=00000000 r 5=00000000 r 6=0000000a r 7=00000000 
-r 8=ffffffff r 9=fffff7ff r10=0000000a r11=fffff000 
-r12=00000000 r13=00000000 r14=00000000 r15=00000000 
-r16=00000000 r17=00000000 r18=00bad000 r19=0dead000 
-r20=00000000 r21=00000000 r22=00000000 r23=00000000 
-r24=00000000 r25=00000000 r26=00000000 r27=00000000 
-r28=00000000 r29=00000000 r30=00000000 r31=00000000 
-
-#Cycles            =    49
+#Cycles            =    47
 #Forwards (EX-EX)  =     0
 #Forwards (EX-MEM) =     0
 #Branches taken    =     0

@@ -116,14 +116,15 @@ uint32_t gen_imm(Instruction instruction)
             break;
 
         case 0x13: // I-type arithmetic
-        if (instruction.itype.funct3 == 0x1 || instruction.itype.funct3 == 0x5) {
-            imm_val = instruction.itype.imm & 0x1F;  // shifts
-        } else if (instruction.itype.funct3 == 0x6 || instruction.itype.funct3 == 0x4) {
-            imm_val = instruction.itype.imm & 0xFFF; // zero-extend ORI/XORI
-       } else {
-            imm_val = sign_extend_number(instruction.itype.imm, 12);
+    if (instruction.itype.funct3 == 0x1 || instruction.itype.funct3 == 0x5) {
+        // Shift instructions (SLLI, SRLI, SRAI) → lower 5 bits only
+        imm_val = instruction.itype.imm & 0x1F;
+    } else {
+        // All other I-type immediates must be sign-extended
+        imm_val = sign_extend_number(instruction.itype.imm, 12);
     }
-       break;
+    break;
+
 
 
         case 0x6F: // JAL
