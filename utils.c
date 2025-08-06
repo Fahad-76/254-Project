@@ -172,22 +172,21 @@ Instruction parse_instruction(uint32_t instruction_bits) {
  * which you will call in other functions when parsing, printing, 
  * or executing the instructions. */
 
-/* Sign extends the given field to a 32-bit integer where field is
- * interpreted an n-bit integer. */
 int sign_extend_number(unsigned int field, unsigned int n) {
-  /* YOUR CODE HERE */
-  //Check if sign bit is 1
-  if(field & (1U << (n-1))){
-    //if yes, cover the upper bits with 1
-    unsigned int cover = ~((1U << n) - 1);
-    return (int)(field | cover);
-  }
-  else{
-    //if positive, just return the bit integer
-    return (int)field;
-  }
-  return 0;
+    // Mask to ensure only lower 'n' bits are used
+    field &= (1U << n) - 1;
+
+    // Check if sign bit (bit n-1) is set
+    if (field & (1U << (n - 1))) {
+        // Negative number: extend sign by filling upper bits with 1s
+        return (int)(field | ~((1U << n) - 1));
+    } else {
+        // Positive number: keep as is
+        return (int)field;
+    }
 }
+
+
 
 /* Return the number of bytes (from the current PC) to the branch label using
  * the given branch instruction */

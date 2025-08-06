@@ -51,19 +51,30 @@ typedef struct {
     bool     mem_write;
     bool     reg_write;
     bool     mem_to_reg;
+
+    uint8_t funct3;
+    uint8_t funct7;
+
+    bool branch;
 } idex_reg_t;
 
 typedef struct {
-    uint32_t instr;        // Raw instruction bits
+    uint32_t instr;
     uint32_t instr_addr;
-    uint32_t alu_result;   // Result from ALU
-    uint32_t rs2_val;      // Value to write to memory (for stores)
-    uint8_t  rd;           // Destination register
-    bool     mem_read;
-    bool     mem_write;
-    bool     reg_write;
-    bool     mem_to_reg;
+    uint32_t alu_result;
+    uint32_t rs1_val;    // <-- ADD THIS
+    uint32_t rs2_val;
+    uint8_t  rd;
+    uint8_t  funct3;
+
+    // Control signals
+    bool mem_read;
+    bool mem_write;
+    bool reg_write;
+    bool mem_to_reg;
+    bool branch;
 } exmem_reg_t;
+
 
 typedef struct {
     uint32_t instr;        // Raw instruction bits
@@ -71,6 +82,7 @@ typedef struct {
     uint32_t alu_result;   // Result from ALU
     uint32_t mem_data;     // Data loaded from memory (if load)
     uint8_t  rd;
+
     bool     reg_write;
     bool     mem_to_reg;
 } memwb_reg_t;
@@ -120,8 +132,12 @@ typedef struct
   bool      pcsrc;
   uint32_t  pc_src0;
   uint32_t  pc_src1;
-  uint8_t   fwd_a;
-  uint8_t   fwd_b;
+  uint8_t   forward_rs1;
+  uint8_t   forward_rs2;
+  bool      reg_write;
+
+  uint32_t  write_data;
+  uint32_t  read_address;
 }pipeline_wires_t;
 
 
