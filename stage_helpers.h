@@ -42,7 +42,16 @@ uint32_t gen_alu_control(idex_reg_t idex_reg)
                 case 0x7: return 0x2; // ANDI
                 case 0x1: return 0x7; // SLLI
                 case 0x5: // SRLI or SRAI
-                    return ((instr.itype.imm & 0x400) != 0) ? 0xB : 0xA;
+                      {
+                        #ifdef DEBUG_CYCLE
+                       printf("[DEBUG] srai/srli decode: imm=0x%x funct3=0x%x funct7=0x%x (bit10=%d) → alu_ctrl=%s\n",
+                       instr.itype.imm,instr.itype.funct3, (instr.itype.imm >> 5),
+                           (instr.itype.imm & 0x400) != 0,((instr.itype.imm & 0x400) != 0) ? "SRA" : "SRL"
+                              );  
+                              #endif
+        return ((instr.itype.imm & 0x400) != 0) ? 0xB : 0xA;
+    }
+
                 default: return 0x0;
             }
 
@@ -238,32 +247,59 @@ bool gen_branch(Instruction instr, uint32_t rs1_val, uint32_t rs2_val)
 */
 void gen_forward(pipeline_regs_t* pregs_p, pipeline_wires_t* pwires_p)
 {
-  //did
-  pwires_p->forward_rs1 = 0;
-  pwires_p->forward_rs2 = 0;
+    // Reset forwarding controls
+    pwires_p->forward_rs1 = 0;
+    pwires_p->forward_rs2 = 0;
 
-  uint8_t id_rs1 = pregs_p->idex_preg.out.rs1;
-  uint8_t id_rs2 = pregs_p->idex_preg.out.rs2;
+    // Source registers from ID/EX
+    uint8_t id_rs1 = pregs_p->idex_preg.out.rs1;
+    uint8_t id_rs2 = pregs_p->idex_preg.out.rs2;
 
-  if(pregs_p->exmem_preg.out.reg_write && pregs_p->exmem_preg.out.rd != 0){
-    if(pregs_p->exmem_preg.out.rd == id_rs1){
-      pwires_p->forward_rs1 =2;
-    }
-    if(pregs_p->exmem_preg.out.rd == id_rs2){
-      pwires_p->forward_rs2 = 2;
-    }
-  }
-  
-   if(pregs_p->memwb_preg.out.reg_write && pregs_p->memwb_preg.out.rd != 0){
-    if(pregs_p->memwb_preg.out.rd == id_rs1 && pwires_p->forward_rs1 == 0){
-      pwires_p->forward_rs1 =1;
-    }
-    if(pregs_p->memwb_preg.out.rd == id_rs2 && pwires_p->forward_rs2 ==0){
-      pwires_p->forward_rs2 = 1;
-    }
-  }
+    // Forwarding from EX/MEM stage
+    if (pregs_p->exmem_preg.out.valid &&
+        pregs_p->exmem_preg.out.reg_write &&
+        pregs_p->exmem_preg.out.rd != 0) {
 
+        if (pregs_p->exmem_preg.out.rd == id_rs1) {
+            pwires_p->forward_rs1 = 2; // EX hazard
+            fwd_exex_counter++;
+#ifdef DEBUG_CYCLE
+            printf("[FWD]: Resolving EX hazard on rs1: x%d\n", id_rs1);
+#endif
+        }
+
+        if (pregs_p->exmem_preg.out.rd == id_rs2) {
+            pwires_p->forward_rs2 = 2; // EX hazard
+            fwd_exex_counter++;
+#ifdef DEBUG_CYCLE
+            printf("[FWD]: Resolving EX hazard on rs2: x%d\n", id_rs2);
+#endif
+        }
+    }
+
+    // Forwarding from MEM/WB stage
+    if (pregs_p->memwb_preg.out.valid &&
+        pregs_p->memwb_preg.out.reg_write &&
+        pregs_p->memwb_preg.out.rd != 0) {
+
+        if (pregs_p->memwb_preg.out.rd == id_rs1 && pwires_p->forward_rs1 == 0) {
+            pwires_p->forward_rs1 = 1; // MEM hazard
+            fwd_exmem_counter++;
+#ifdef DEBUG_CYCLE
+            printf("[FWD]: Resolving MEM hazard on rs1: x%d\n", id_rs1);
+#endif
+        }
+
+        if (pregs_p->memwb_preg.out.rd == id_rs2 && pwires_p->forward_rs2 == 0) {
+            pwires_p->forward_rs2 = 1; // MEM hazard
+            fwd_exmem_counter++;
+#ifdef DEBUG_CYCLE
+            printf("[FWD]: Resolving MEM hazard on rs2: x%d\n", id_rs2);
+#endif
+        }
+    }
 }
+
 
 /**
  * Task   : Sets the pipeline wires for the hazard unit's control signals
@@ -273,9 +309,44 @@ void gen_forward(pipeline_regs_t* pregs_p, pipeline_wires_t* pwires_p)
 */
 void detect_hazard(pipeline_regs_t* pregs_p, pipeline_wires_t* pwires_p, regfile_t* regfile_p)
 {
-  /**
-   * YOUR CODE HERE
-   */
+    ifid_reg_t ifid = pregs_p->ifid_preg.out;
+    idex_reg_t idex = pregs_p->idex_preg.out;
+
+    // Skip hazard detection if bubble in ID or EX
+    if (!ifid.valid || !idex.valid) return;
+
+    if (idex.mem_read) {
+        uint8_t load_rd = idex.rd;
+        if (load_rd != 0) {
+            Instruction ifid_instr = parse_instruction(ifid.instr);
+            uint8_t ifid_rs1 = 0, ifid_rs2 = 0;
+
+            // determine source regs
+            switch (ifid_instr.opcode) {
+                case 0x33: ifid_rs1 = ifid_instr.rtype.rs1; ifid_rs2 = ifid_instr.rtype.rs2; break;
+                case 0x13: case 0x03: ifid_rs1 = ifid_instr.itype.rs1; break;
+                case 0x23: ifid_rs1 = ifid_instr.stype.rs1; ifid_rs2 = ifid_instr.stype.rs2; break;
+                case 0x63: ifid_rs1 = ifid_instr.sbtype.rs1; ifid_rs2 = ifid_instr.sbtype.rs2; break;
+                default: break;
+            }
+
+            if (load_rd == ifid_rs1 || load_rd == ifid_rs2) {
+                // Insert bubble by clearing control
+                pregs_p->idex_preg.inp.mem_read   = 0;
+                pregs_p->idex_preg.inp.mem_write  = 0;
+                pregs_p->idex_preg.inp.reg_write  = 0;
+                pregs_p->idex_preg.inp.mem_to_reg = 0;
+                pregs_p->idex_preg.inp.branch     = 0;
+                pregs_p->idex_preg.inp.alu_op     = 0;
+                pregs_p->idex_preg.inp.valid      = false;
+
+                pwires_p->pc_src0 = ifid.instr_addr;  // stall PC
+#ifdef DEBUG_CYCLE
+                printf("[HZD]: Stalling and rewriting PC: 0x%08x\n", pwires_p->pc_src0);
+#endif
+            }
+        }
+    }
 }
 
 

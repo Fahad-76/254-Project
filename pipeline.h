@@ -29,6 +29,7 @@ typedef struct {
     uint32_t instr;        // Raw 32-bit instruction
     uint32_t instr_addr;   // Address of this instruction
     //uint32_t next_pc;      // PC + 4 (next sequential PC)
+    bool valid;
 } ifid_reg_t;
 
 extern uint64_t mem_access_counter;
@@ -56,6 +57,7 @@ typedef struct {
     uint8_t funct7;
 
     bool branch;
+    bool valid;
 } idex_reg_t;
 
 typedef struct {
@@ -73,6 +75,7 @@ typedef struct {
     bool reg_write;
     bool mem_to_reg;
     bool branch;
+    bool valid;
 } exmem_reg_t;
 
 
@@ -85,6 +88,7 @@ typedef struct {
 
     bool     reg_write;
     bool     mem_to_reg;
+    bool     valid;
 } memwb_reg_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -115,6 +119,7 @@ typedef struct
   memwb_reg_t out;
 }memwb_reg_pair_t;
 
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Functional pipeline requirements
 ///////////////////////////////////////////////////////////////////////////////
@@ -134,12 +139,18 @@ typedef struct
   uint32_t  pc_src1;
   uint8_t   forward_rs1;
   uint8_t   forward_rs2;
+  uint32_t  memwb_wdata;
+  uint32_t  exmem_alu_result;
   bool      reg_write;
-
+  bool      flush;
   uint32_t  write_data;
   uint32_t  read_address;
 }pipeline_wires_t;
 
+///////////////////////////////////////////////////////////////////////////////
+/// Helper Function
+///////////////////////////////////////////////////////////////////////////////
+void update_forwarding_value(pipeline_regs_t* pregs_p, pipeline_wires_t* pwires_p);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Function definitions for different stages
@@ -163,7 +174,7 @@ exmem_reg_t stage_execute(idex_reg_t idex_reg, pipeline_wires_t* pwires_p);
 /**
  * output : memwb_reg_t
  **/ 
-memwb_reg_t stage_mem(exmem_reg_t exmem_reg, pipeline_wires_t* pwires_p, Byte* memory, Cache* cache_p);
+memwb_reg_t stage_mem(exmem_reg_t exmem_reg, pipeline_wires_t* pwires_p, Byte* memory, Cache* cache_p , regfile_t* regfile_p);
 
 /**
  * output : write_data

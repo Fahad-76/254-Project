@@ -21,7 +21,18 @@ simulator_config_t sim_config = {0};
 
 void bootstrap(pipeline_wires_t* pwires_p, pipeline_regs_t* pregs_p, regfile_t* regfile_p)
 {
+    // Initialize PC
     pwires_p->pc_src0 = regfile_p->PC;
+        // Initialize pipeline registers to NOP (addi x0,x0,0 = 0x00000013)
+    pregs_p->ifid_preg.inp.valid  = false;
+    pregs_p->ifid_preg.out.valid  = false;
+    pregs_p->idex_preg.inp.valid  = false;
+    pregs_p->idex_preg.out.valid  = false;
+    pregs_p->exmem_preg.inp.valid = false;
+    pregs_p->exmem_preg.out.valid = false;
+    pregs_p->memwb_preg.inp.valid = false;
+    pregs_p->memwb_preg.out.valid = false;
+
 }
 
 ///////////////////////////
@@ -34,9 +45,10 @@ void bootstrap(pipeline_wires_t* pwires_p, pipeline_regs_t* pregs_p, regfile_t* 
  **/
 ifid_reg_t stage_fetch(pipeline_wires_t *pwires_p, regfile_t *regfile_p, Byte *memory_p) {
     ifid_reg_t ifid_reg = {0};
+
      if (pwires_p->pcsrc) {
         regfile_p->PC = pwires_p->pc_src1;  // Redirect PC to branch target
-        pwires_p->pcsrc = false;            // Clear signal after use
+        //pwires_p->pcsrc = false;            // Clear signal after use
     }
 
     // ----------------------------
@@ -46,11 +58,11 @@ ifid_reg_t stage_fetch(pipeline_wires_t *pwires_p, regfile_t *regfile_p, Byte *m
     memcpy(&instruction_bits, memory_p + regfile_p->PC, 4); // Load 32-bit word
     ifid_reg.instr = instruction_bits;
     ifid_reg.instr_addr = regfile_p->PC;
+    ifid_reg.valid = true;
 
-    // ----------------------------
     // Set default next PC (PC + 4)
-    // ----------------------------
     pwires_p->pc_src0 = regfile_p->PC + 4;
+   // regfile_p->PC = pwires_p->pc_src0;
 
 #ifdef DEBUG_CYCLE
     printf("[IF ]: Instruction [%08x]@[%08x]: ", instruction_bits, regfile_p->PC);
@@ -69,17 +81,17 @@ idex_reg_t stage_decode(ifid_reg_t ifid_reg, pipeline_wires_t *pwires_p, regfile
     idex_reg_t idex_reg = {0};  // Initialize ID/EX pipeline register
 
     // Handle NOP (no instruction)
-    if (ifid_reg.instr == 0) {
+       if (!ifid_reg.valid) {
 #ifdef DEBUG_CYCLE
-        printf("[ID ]: Instruction [%08x]@[%08x]: ", ifid_reg.instr, ifid_reg.instr_addr);
-        decode_instruction(ifid_reg.instr);
+    printf("[ID ]: Instruction [%08x]@[%08x]: \n", ifid_reg.instr, ifid_reg.instr_addr);
 #endif
+        idex_reg.valid = false;
         return idex_reg;
     }
-
     // Pass instruction and PC
     idex_reg.instr      = ifid_reg.instr;
     idex_reg.instr_addr = ifid_reg.instr_addr;
+    idex_reg.valid      = true;
 
     // Parse instruction
     Instruction decoded = parse_instruction(ifid_reg.instr);
@@ -166,51 +178,67 @@ idex_reg_t stage_decode(ifid_reg_t ifid_reg, pipeline_wires_t *pwires_p, regfile
  **/
 exmem_reg_t stage_execute(idex_reg_t idex_reg, pipeline_wires_t *pwires_p) {
     exmem_reg_t exmem_reg = (exmem_reg_t){0};
-
+    
     // Handle bubble (NOP)
-    if (idex_reg.instr == 0) {
+        if (!idex_reg.valid) {
 #ifdef DEBUG_CYCLE
-        printf("[EX ]: Instruction [%08x]@[%08x]: ", idex_reg.instr, idex_reg.instr_addr);
-        decode_instruction(idex_reg.instr);
+        printf("[EX ]: Instruction [%08x]@[%08x]: \n", idex_reg.instr, idex_reg.instr_addr);
 #endif
+        exmem_reg.valid = false;
         return exmem_reg;
     }
-
+    exmem_reg.valid = true;
     Instruction instr = parse_instruction(idex_reg.instr);
 
-    // ---------------------------
-    // Determine operands
-    // ---------------------------
-    uint32_t operand1 = idex_reg.rs1_val;
-    uint32_t operand2;
 
+    // Determine operands forwarding
+    uint32_t operand1;
+      switch(pwires_p->forward_rs1){
+        case 1:
+          operand1 = pwires_p -> memwb_wdata;
+          break;
+        case 2: //EX hazard
+          operand1 = pwires_p->exmem_alu_result;
+          break;
+        default:
+          operand1 = idex_reg.rs1_val;
+          break;
+      }
+    uint32_t operand2;
     // R-type uses rs2, others use imm
     if (instr.opcode == 0x33) {
-        operand2 = idex_reg.rs2_val;
-    } else {
+        switch(pwires_p->forward_rs2){
+         case 1:
+           operand2 = pwires_p-> memwb_wdata;
+           break;
+         case 2:
+           operand2 = pwires_p->exmem_alu_result;
+           break;
+         default:
+           operand2 = idex_reg.rs2_val;
+           break;
+    } }
+    else {
         operand2 = idex_reg.imm;
     }
 
-    // ---------------------------
     // ALU operation
-    // ---------------------------
     uint32_t alu_ctrl   = gen_alu_control(idex_reg);
     uint32_t alu_result = execute_alu(operand1, operand2, alu_ctrl);
+printf("[EX DEBUG] Instruction [0x%08x] → rs1: x%d = 0x%08x, rs2: x%d = 0x%08x → result: 0x%08x\n",
+    idex_reg.instr,
+    instr.rtype.rs1, operand1,
+    instr.rtype.rs2, operand2,
+    alu_result);
 
-    // ---------------------------
     // Handle special opcodes
-    // ---------------------------
-    if (instr.opcode == 0x6F) {          // JAL
-        alu_result = idex_reg.instr_addr + 4;  // link address
-    } else if (instr.opcode == 0x37) {   // LUI
+    if (instr.opcode == 0x37) {   // LUI
         alu_result = idex_reg.imm;
     } else if (instr.opcode == 0x17) {   // AUIPC
         alu_result = idex_reg.instr_addr + idex_reg.imm;
     }
 
-    // ---------------------------
     // Populate EX/MEM register
-    // ---------------------------
     exmem_reg.instr       = idex_reg.instr;
     exmem_reg.instr_addr  = idex_reg.instr_addr;
     exmem_reg.alu_result  = alu_result;
@@ -228,6 +256,7 @@ exmem_reg_t stage_execute(idex_reg_t idex_reg, pipeline_wires_t *pwires_p) {
 
     // Update pipeline wires (optional)
     pwires_p->read_address = exmem_reg.alu_result;
+    pwires_p->exmem_alu_result = exmem_reg.alu_result;
 
 #ifdef DEBUG_CYCLE
     printf("[EX ]: Instruction [%08x]@[%08x]: ", idex_reg.instr, idex_reg.instr_addr);
@@ -238,18 +267,23 @@ exmem_reg_t stage_execute(idex_reg_t idex_reg, pipeline_wires_t *pwires_p) {
 }
 
 
- //STAGE  : stage_mem
-memwb_reg_t stage_mem(exmem_reg_t exmem_reg, pipeline_wires_t *pwires_p, Byte *memory_p, Cache *cache_p) {
+/**
+ * STAGE  : stage_mem
+ * output : memwb_reg
+ **/
+memwb_reg_t stage_mem(exmem_reg_t exmem_reg, pipeline_wires_t *pwires_p, Byte *memory_p, Cache *cache_p , regfile_t *regfile_p) {
     memwb_reg_t memwb_reg = {0};
-
+pwires_p->memwb_wdata = memwb_reg.mem_to_reg ? memwb_reg.mem_data : memwb_reg.alu_result;
     // Bubble check
-    if (exmem_reg.instr == 0) {
+       if (!exmem_reg.valid) {
 #ifdef DEBUG_CYCLE
-        printf("[MEM]: Instruction [%08x]@[%08x]: ", exmem_reg.instr, exmem_reg.instr_addr);
-        decode_instruction(exmem_reg.instr);
+        printf("[MEM]: Instruction [%08x]@[%08x]: \n", exmem_reg.instr, exmem_reg.instr_addr);
 #endif
+        memwb_reg.valid = false;
         return memwb_reg;
     }
+
+    memwb_reg.valid = true;
 
     // Parse instruction ONCE here
     Instruction instr = parse_instruction(exmem_reg.instr);
@@ -262,38 +296,75 @@ memwb_reg_t stage_mem(exmem_reg_t exmem_reg, pipeline_wires_t *pwires_p, Byte *m
     memwb_reg.mem_to_reg = exmem_reg.mem_to_reg;
     memwb_reg.reg_write  = exmem_reg.reg_write;
 
+    uint32_t addr = exmem_reg.alu_result;
+
     // --- Load handling ---
     if (exmem_reg.mem_read) {
         switch (instr.itype.funct3) {
-            case 0x0: { int8_t val;  memcpy(&val, memory_p + exmem_reg.alu_result, 1); memwb_reg.mem_data = (int32_t)val; break; }
-            case 0x1: { int16_t val; memcpy(&val, memory_p + exmem_reg.alu_result, 2); memwb_reg.mem_data = (int32_t)val; break; }
-            case 0x2: memcpy(&memwb_reg.mem_data, memory_p + exmem_reg.alu_result, 4); break;
-            case 0x4: { uint8_t val;  memcpy(&val, memory_p + exmem_reg.alu_result, 1); memwb_reg.mem_data = val; break; }
-            case 0x5: { uint16_t val; memcpy(&val, memory_p + exmem_reg.alu_result, 2); memwb_reg.mem_data = val; break; }
-
+            case 0x0: { //LB
+                memwb_reg.mem_data = (int32_t)((int8_t)memory_p[addr]);
+                break;
+            }
+            case 0x1: { // LH
+                uint16_t half = memory_p[addr] | (memory_p[addr + 1] << 8);
+                memwb_reg.mem_data = (int32_t)((int16_t)half);
+                break;
+            }
+            case 0x2: { // LW 
+                 uint32_t word = memory_p[addr]
+                              | (memory_p[addr + 1] << 8)
+                              | (memory_p[addr + 2] << 16)
+                              | (memory_p[addr + 3] << 24);
+                memwb_reg.mem_data = (int32_t)word;
+                break;
+            }
+            case 0x4: { // LBU
+                memwb_reg.mem_data = (uint32_t)memory_p[addr]; 
+                break;
+             }
+            case 0x5: { //LHU
+                uint16_t half = memory_p[addr] | (memory_p[addr + 1] << 8);
+                memwb_reg.mem_data = (uint32_t)half;
+                 break; 
+            }
         }
     }
 
     // --- Store handling ---
     if (exmem_reg.mem_write) {
+        uint32_t val  = exmem_reg.rs2_val;
         switch (instr.stype.funct3) {
-            case 0x0: memcpy(memory_p + exmem_reg.alu_result, &exmem_reg.rs2_val, 1); break;
-            case 0x1: memcpy(memory_p + exmem_reg.alu_result, &exmem_reg.rs2_val, 2); break;
-            case 0x2: memcpy(memory_p + exmem_reg.alu_result, &exmem_reg.rs2_val, 4); break;
+         case 0x0: // SB
+            memory_p[addr] = val & 0xFF;
+            break;
+        case 0x1: // SH
+            memory_p[addr] = val & 0xFF;
+            memory_p[addr + 1] = (val >> 8) & 0xFF;
+            break;
+        case 0x2: // SW
+            memory_p[addr]  = val & 0xFF;
+            memory_p[addr + 1] = (val >> 8) & 0xFF;
+            memory_p[addr + 2] = (val >> 16) & 0xFF;
+            memory_p[addr + 3] = (val >> 24) & 0xFF;
+            break;
         }
     }
 
     // --- Branch/JAL handling ---
-    if (instr.opcode == 0x63) {
-        if (gen_branch(instr, exmem_reg.rs1_val, exmem_reg.rs2_val)) {
+      if (instr.opcode == 0x63) {
+        uint32_t rs1_val = regfile_p->R[instr.sbtype.rs1];
+        uint32_t rs2_val = regfile_p->R[instr.sbtype.rs2];
+        bool taken = gen_branch(instr, rs1_val, rs2_val);
+        if (taken) {
             pwires_p->pcsrc = true;
             pwires_p->pc_src1 = exmem_reg.instr_addr + get_branch_offset(instr);
-        }
-    } else if (instr.opcode == 0x6F) {
-        pwires_p->pcsrc = true;
-        pwires_p->pc_src1 = exmem_reg.instr_addr + get_jump_offset(instr);
-    }
+        } }
 
+     if (instr.opcode == 0x6F) {
+    memwb_reg.alu_result = exmem_reg.instr_addr + 4; // Link address
+    pwires_p->pcsrc = true;
+    pwires_p->pc_src1 = exmem_reg.instr_addr + get_jump_offset(instr);
+}
 #ifdef DEBUG_CYCLE
     printf("[MEM]: Instruction [%08x]@[%08x]: ", exmem_reg.instr, exmem_reg.instr_addr);
     decode_instruction(exmem_reg.instr);
@@ -308,11 +379,17 @@ memwb_reg_t stage_mem(exmem_reg_t exmem_reg, pipeline_wires_t *pwires_p, Byte *m
  * output : nothing - The state of the register file may be changed
  **/
 void stage_writeback(memwb_reg_t memwb_reg, pipeline_wires_t *pwires_p, regfile_t *regfile_p) {
-    // Handle bubble (NOP)
-    if (memwb_reg.instr == 0) {
+   // Skip writing if NOP was flushed into WB
+    if (memwb_reg.instr == 0x00000013) {
 #ifdef DEBUG_CYCLE
-        printf("[WB ]: Instruction [%08x]@[%08x]: ", memwb_reg.instr, memwb_reg.instr_addr);
-        decode_instruction(memwb_reg.instr);
+        printf("[WB ]: Instruction is NOP, skipping writeback\n");
+#endif
+        return;
+    }
+    // Handle bubble (NOP)
+       if (!memwb_reg.valid) {
+#ifdef DEBUG_CYCLE
+        printf("[WB ]: Instruction [%08x]@[%08x]: \n", memwb_reg.instr, memwb_reg.instr_addr);
 #endif
         return;
     }
@@ -335,16 +412,31 @@ void stage_writeback(memwb_reg_t memwb_reg, pipeline_wires_t *pwires_p, regfile_
     if (memwb_reg.reg_write && memwb_reg.rd != 0) {
         regfile_p->R[memwb_reg.rd] = write_value;
     }
-
-    // ----------------------------
+   // storing WB in wires for mem forwarding
+   pwires_p->memwb_wdata = write_value;
     // Update debug wires
-    // ----------------------------
     pwires_p->reg_write = memwb_reg.reg_write;
+
+    #ifdef DEBUG_CYCLE
+        printf("[WB ]: Instruction [%08x]@[%08x] → Writing x%d ← 0x%08x (%s)\n",
+               memwb_reg.instr, memwb_reg.instr_addr,
+               memwb_reg.rd, write_value,
+               memwb_reg.mem_to_reg ? "mem_data" : "alu_result");
+#endif
 
 #ifdef DEBUG_CYCLE
     printf("[WB ]: Instruction [%08x]@[%08x]: ", memwb_reg.instr, memwb_reg.instr_addr);
     decode_instruction(memwb_reg.instr);
 #endif
+}
+
+
+//helper function to ensure the forwarding value is correctly updates
+void update_forwarding_value(pipeline_regs_t* pregs_p, pipeline_wires_t* pwires_p) {
+    if (pregs_p->memwb_preg.out.mem_to_reg)
+        pwires_p->memwb_wdata = pregs_p->memwb_preg.out.mem_data;
+    else
+        pwires_p->memwb_wdata = pregs_p->memwb_preg.out.alu_result;
 }
 
 
@@ -360,35 +452,49 @@ void cycle_pipeline(regfile_t *regfile_p, Byte *memory_p, Cache *cache_p,
     printf("==============v\n\n");
 #endif
 
-    // --- Stage progression ---
+    // --- Hazard Detection ---
+    detect_hazard(pregs_p, pwires_p, regfile_p);
+
+    // --- Stage Progression ---
     pregs_p->ifid_preg.inp  = stage_fetch(pwires_p, regfile_p, memory_p);
     pregs_p->idex_preg.inp  = stage_decode(pregs_p->ifid_preg.out, pwires_p, regfile_p);
+
+    // --- Forwarding Logic ---
+    gen_forward(pregs_p, pwires_p);
+
     pregs_p->exmem_preg.inp = stage_execute(pregs_p->idex_preg.out, pwires_p);
-    pregs_p->memwb_preg.inp = stage_mem(pregs_p->exmem_preg.out, pwires_p, memory_p, cache_p);
+    pregs_p->memwb_preg.inp = stage_mem(pregs_p->exmem_preg.out, pwires_p, memory_p, cache_p, regfile_p);
                               stage_writeback(pregs_p->memwb_preg.out, pwires_p, regfile_p);
-                        
-    // --- Handle PC update ---
+        update_forwarding_value(pregs_p, pwires_p);
+    // --- Handle PC Update & Flush ---
     if (pwires_p->pcsrc) {
-   // #ifdef DEBUG_CYCLE
-     //   printf("\n========\n[MAIN]: Flushing pipeline\n========\n");
-    //#endif
-
         regfile_p->PC = pwires_p->pc_src1;
-        //pregs_p->ifid_preg.out = (ifid_reg_t){0}; // Flush only IF stage
-        pregs_p->ifid_preg.out.instr = 0x00000013;  // addi x0,x0,0
 
+        pregs_p->ifid_preg.inp.valid  = true;
+        pregs_p->ifid_preg.inp.instr  = 0x00000013;
+        pregs_p->ifid_preg.out.valid  = true;
+        pregs_p->ifid_preg.out.instr  = 0x00000013;
+        pregs_p->idex_preg.inp.valid  = true;
+        pregs_p->idex_preg.inp.instr  = 0x00000013;
+        pregs_p->idex_preg.out.valid  = true;
+        pregs_p->idex_preg.out.instr  = 0x00000013;
+        pregs_p->exmem_preg.inp.valid  = true;
+        pregs_p->exmem_preg.inp.instr  = 0x00000013;
+        pregs_p->exmem_preg.out.valid  = true;
+        pregs_p->exmem_preg.out.instr  = 0x00000013;
+
+
+        printf("[CPL]: Pipeline Flushed\n");
         pwires_p->pcsrc = false;
-} else {
-    regfile_p->PC = pwires_p->pc_src0; // Sequential
-}
+    } else {
+        regfile_p->PC = pwires_p->pc_src0; // Sequential PC update
+    }
 
-
-    // --- Advance pipeline registers ---
+    // --- Advance Pipeline Registers ---
     pregs_p->ifid_preg.out  = pregs_p->ifid_preg.inp;
     pregs_p->idex_preg.out  = pregs_p->idex_preg.inp;
     pregs_p->exmem_preg.out = pregs_p->exmem_preg.inp;
     pregs_p->memwb_preg.out = pregs_p->memwb_preg.inp;
-
 
   /////////////////// NO CHANGES BELOW THIS ARE REQUIRED //////////////////////
 

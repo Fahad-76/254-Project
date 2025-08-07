@@ -245,7 +245,6 @@ int get_store_offset(Instruction instruction) {
   imm |= (instruction.stype.imm5 & 0x1F);
   //Extract bits [11:5] from imm7 S-type
   imm |= (instruction.stype.imm7 & 0x7F) << 5;
-
   return sign_extend_number(imm, 12);
 }
 /************************Helper functions************************/
