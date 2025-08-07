@@ -191,28 +191,16 @@ int sign_extend_number(unsigned int field, unsigned int n) {
 /* Return the number of bytes (from the current PC) to the branch label using
  * the given branch instruction */
 int get_branch_offset(Instruction instruction) {
-  /* YOUR CODE HERE */
-  //Branches (SB-type)
-  //Stores the combined immediate bits
-  int imm = 0;
+    int imm = 0;
 
-  //Extracting imm[11] -> Bit position 0 in imm5
-  //Shift it to position 11
-  imm |= (instruction.sbtype.imm5 & 0x1) << 11;
-  //Extracting imm[12] -> Bit position 6 in imm7
-  //Shift it 5 positions to land in bit position 12 of imm
-  imm |= (instruction.sbtype.imm7 & 0x40) << 5;
-  //Exctracting imm[10:5], the lower bits of imm7
-  //Shift it 5 positions to land in bit position 10-5
-  imm |= (instruction.sbtype.imm7 & 0x3F) << 5;
-  //Extracting imm[4:1], the higher bits of imm5
-  //Drop imm[11] by shifting right by one bit position, then extract
-  //Shift it 1 position to the right to their correct position (4 to 1)
-  imm |= ((instruction.sbtype.imm5 >> 1) & 0xF) << 1;
-  
-  //Extend 12bit to 32bit
-  return sign_extend_number(imm, 12);
+    imm |= (instruction.sbtype.imm5 & 0x1) << 11;                         // imm[11] = imm5[0]
+    imm |= ((instruction.sbtype.imm5 >> 1) & 0xF) << 1;                   // imm[4:1] = imm5[4:1]
+    imm |= (instruction.sbtype.imm7 & 0x3F) << 5;                         // imm[10:5] = imm7[5:0]
+    imm |= ((instruction.sbtype.imm7 >> 6) & 0x1) << 12;                  // imm[12] = imm7[6]
+
+    return sign_extend_number(imm, 13); // Branch offsets are 13-bit signed
 }
+
 
 /* Returns the number of bytes (from the current PC) to the jump label using the
  * given jump instruction */

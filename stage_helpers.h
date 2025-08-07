@@ -42,15 +42,7 @@ uint32_t gen_alu_control(idex_reg_t idex_reg)
                 case 0x7: return 0x2; // ANDI
                 case 0x1: return 0x7; // SLLI
                 case 0x5: // SRLI or SRAI
-                      {
-                        #ifdef DEBUG_CYCLE
-                       printf("[DEBUG] srai/srli decode: imm=0x%x funct3=0x%x funct7=0x%x (bit10=%d) → alu_ctrl=%s\n",
-                       instr.itype.imm,instr.itype.funct3, (instr.itype.imm >> 5),
-                           (instr.itype.imm & 0x400) != 0,((instr.itype.imm & 0x400) != 0) ? "SRA" : "SRL"
-                              );  
-                              #endif
-        return ((instr.itype.imm & 0x400) != 0) ? 0xB : 0xA;
-    }
+                  return ((instr.itype.imm & 0x400) != 0) ? 0xB : 0xA;
 
                 default: return 0x0;
             }
